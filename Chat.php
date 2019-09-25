@@ -3,16 +3,17 @@ class Chat{
     private $host  = 'localhost';
     private $user  = 'root';
     private $password   = "root";
-    private $database  = 'database';
+    private $database  = 'Exam';
     private $chatTable = 'chat';
 	private $chatUsersTable = 'chat_users';
 	private $chatLoginDetailsTable = 'chat_login_details';
-	private $dbConnect = true;
+	private $dbConnect = false;
     public function __construct(){
-        if(!$this->dbConnect){ 
+        if(!$this->dbConnect){
             $conn = new mysqli($this->host, $this->user, $this->password, $this->database);
-            if($conn->connect_error){
-                die("Error failed to connect to MySQL: " . $conn->connect_error);
+
+            if(!$conn || $conn->connect_error){
+                die("Error failed to connect to MySQL: " . mysqli_error());
             }else{
                 $this->dbConnect = $conn;
             }
@@ -24,8 +25,8 @@ class Chat{
 			die('Error in query: '. mysqli_error());
 		}
 		$data= array();
-		while ($row = mysqli_fetch_array($result, MYSQL_ASSOC)) {
-			$data[]=$row;            
+		while ($row = $result->fetch_assoc()) {
+			$data[]=$row;
 		}
 		return $data;
 	}
@@ -41,9 +42,9 @@ class Chat{
 		$sqlQuery = "
 			SELECT userid, username 
 			FROM ".$this->chatUsersTable." 
-			WHERE username='".$username."' AND password='".$password."'";		
+			WHERE username='".$username."' AND password='".$password."'";
         return  $this->getData($sqlQuery);
-	}		
+	}
 	public function chatUsers($userid){
 		$sqlQuery = "
 			SELECT * FROM ".$this->chatUsersTable." 
@@ -65,35 +66,37 @@ class Chat{
 		$userAvatar = '';
 		foreach ($userResult as $user) {
 			$userAvatar = $user['avatar'];
-		}	
+		}
 		return $userAvatar;
-	}	
-	public function updateUserOnline($userId, $online) {		
+	}
+	public function updateUserOnline($userId, $online) {
 		$sqlUserUpdate = "
 			UPDATE ".$this->chatUsersTable." 
 			SET online = '".$online."' 
-			WHERE userid = '".$userId."'";			
-		mysqli_query($this->dbConnect, $sqlUserUpdate);		
+			WHERE userid = '".$userId."'";
+		mysqli_query($this->dbConnect, $sqlUserUpdate);
 	}
-	public function insertChat($reciever_userid, $user_id, $chat_message) {		
+	public function insertChat($reciever_userid, $user_id, $chat_message) {
 		$sqlInsert = "
 			INSERT INTO ".$this->chatTable." 
 			(reciever_userid, sender_userid, message, status) 
-			VALUES ('".$reciever_userid."', '".$user_id."', '".$chat_message."', '1')";
-		$result = mysqli_query($this->dbConnect, $sqlInsert);
+			VALUES (:reciever, '".$user_id."', '".$chat_message."', '1')";
+		$query = mysqli_prepare($this->dbConnect, $sqlInsert);
+		mysqli_stmt_bind_param($query, 'reciever', $reciever_userid);
+		$result = mysqli_stmt_execute($query);
 		if(!$result){
 			return ('Error in query: '. mysqli_error());
 		} else {
 			$conversation = $this->getUserChat($user_id, $reciever_userid);
 			$data = array(
-				"conversation" => $conversation			
+				"conversation" => $conversation
 			);
-			echo json_encode($data);	
+			echo json_encode($data);
 		}
 	}
 	public function getUserChat($from_user_id, $to_user_id) {
-		$fromUserAvatar = $this->getUserAvatar($from_user_id);	
-		$toUserAvatar = $this->getUserAvatar($to_user_id);			
+		$fromUserAvatar = $this->getUserAvatar($from_user_id);
+		$toUserAvatar = $this->getUserAvatar($to_user_id);
 		$sqlQuery = "
 			SELECT * FROM ".$this->chatTable." 
 			WHERE (sender_userid = '".$from_user_id."' 
@@ -101,7 +104,7 @@ class Chat{
 			OR (sender_userid = '".$to_user_id."' 
 			AND reciever_userid = '".$from_user_id."') 
 			ORDER BY timestamp ASC";
-		$userChat = $this->getData($sqlQuery);	
+		$userChat = $this->getData($sqlQuery);
 		$conversation = '<ul>';
 		foreach($userChat as $chat){
 			$user_name = '';
@@ -111,14 +114,14 @@ class Chat{
 			} else {
 				$conversation .= '<li class="replies">';
 				$conversation .= '<img width="22px" height="22px" src="userpics/'.$toUserAvatar.'" alt="" />';
-			}			
-			$conversation .= '<p>'.$chat["message"].'</p>';			
+			}
+			$conversation .= '<p>'.$chat["message"].'</p>';
 			$conversation .= '</li>';
-		}		
+		}
 		$conversation .= '</ul>';
 		return $conversation;
 	}
-	public function showUserChat($from_user_id, $to_user_id) {		
+	public function showUserChat($from_user_id, $to_user_id) {
 		$userDetails = $this->getUserDetails($to_user_id);
 		$toUserAvatar = '';
 		foreach ($userDetails as $user) {
@@ -130,27 +133,27 @@ class Chat{
 					<i class="fa fa-twitter" aria-hidden="true"></i>
 					 <i class="fa fa-instagram" aria-hidden="true"></i>
 				</div>';
-		}		
+		}
 		// get user conversation
-		$conversation = $this->getUserChat($from_user_id, $to_user_id);	
-		// update chat user read status		
+		$conversation = $this->getUserChat($from_user_id, $to_user_id);
+		// update chat user read status
 		$sqlUpdate = "
 			UPDATE ".$this->chatTable." 
 			SET status = '0' 
 			WHERE sender_userid = '".$to_user_id."' AND reciever_userid = '".$from_user_id."' AND status = '1'";
-		mysqli_query($this->dbConnect, $sqlUpdate);		
+		mysqli_query($this->dbConnect, $sqlUpdate);
 		// update users current chat session
 		$sqlUserUpdate = "
 			UPDATE ".$this->chatUsersTable." 
 			SET current_session = '".$to_user_id."' 
 			WHERE userid = '".$from_user_id."'";
-		mysqli_query($this->dbConnect, $sqlUserUpdate);		
+		mysqli_query($this->dbConnect, $sqlUserUpdate);
 		$data = array(
 			"userSection" => $userSection,
-			"conversation" => $conversation			
+			"conversation" => $conversation
 		 );
-		 echo json_encode($data);		
-	}	
+		 echo json_encode($data);
+	}
 	public function getUnreadMessageCount($senderUserid, $recieverUserid) {
 		$sqlQuery = "
 			SELECT * FROM ".$this->chatTable."  
@@ -161,18 +164,18 @@ class Chat{
 			$output = $numRows;
 		}
 		return $output;
-	}	
-	public function updateTypingStatus($is_type, $loginDetailsId) {		
+	}
+	public function updateTypingStatus($is_type, $loginDetailsId) {
 		$sqlUpdate = "
 			UPDATE ".$this->chatLoginDetailsTable." 
 			SET is_typing = '".$is_type."' 
 			WHERE id = '".$loginDetailsId."'";
 		mysqli_query($this->dbConnect, $sqlUpdate);
-	}		
+	}
 	public function fetchIsTypeStatus($userId){
 		$sqlQuery = "
 		SELECT is_typing FROM ".$this->chatLoginDetailsTable." 
-		WHERE userid = '".$userId."' ORDER BY last_activity DESC LIMIT 1"; 
+		WHERE userid = '".$userId."' ORDER BY last_activity DESC LIMIT 1";
 		$result =  $this->getData($sqlQuery);
 		$output = '';
 		foreach($result as $row) {
@@ -181,22 +184,22 @@ class Chat{
 			}
 		}
 		return $output;
-	}		
-	public function insertUserLoginDetails($userId) {		
+	}
+	public function insertUserLoginDetails($userId) {
 		$sqlInsert = "
 			INSERT INTO ".$this->chatLoginDetailsTable."(userid) 
 			VALUES ('".$userId."')";
 		mysqli_query($this->dbConnect, $sqlInsert);
 		$lastInsertId = mysqli_insert_id($this->dbConnect);
-        return $lastInsertId;		
-	}	
-	public function updateLastActivity($loginDetailsId) {		
+        return $lastInsertId;
+	}
+	public function updateLastActivity($loginDetailsId) {
 		$sqlUpdate = "
 			UPDATE ".$this->chatLoginDetailsTable." 
 			SET last_activity = now() 
 			WHERE id = '".$loginDetailsId."'";
 		mysqli_query($this->dbConnect, $sqlUpdate);
-	}	
+	}
 	public function getUserLastActivity($userId) {
 		$sqlQuery = "
 			SELECT last_activity FROM ".$this->chatLoginDetailsTable." 
@@ -205,6 +208,6 @@ class Chat{
 		foreach($result as $row) {
 			return $row['last_activity'];
 		}
-	}	
+	}
 }
 ?>

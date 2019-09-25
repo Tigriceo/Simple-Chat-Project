@@ -65,7 +65,7 @@ final class Versions
   'zendframework/zend-eventmanager' => '3.2.1@a5e2583a211f73604691586b8406ff7296a946dd',
   'nikic/php-parser' => 'v4.2.4@97e59c7a16464196a8b9c77c47df68e4a39a45c4',
   'symfony/maker-bundle' => 'v1.13.0@c4388410e2fb6321e77c5dd6e3cb2dba821f9fe6',
-  '__root__' => 'No version set (parsed as 1.0.0)@',
+  '__root__' => '1.x-dev@174b112bfdd95dd5448730820eb07f6a52cff088',
 );
 
     private function __construct()
